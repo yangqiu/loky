@@ -62,6 +62,7 @@ import sys
 import time
 import types
 import atexit
+import signal
 import weakref
 import warnings
 import itertools
@@ -285,6 +286,7 @@ def _process_worker(call_queue, result_queue, processes_management_lock,
         timeout: maximum time to wait for a new item in the call_queue. If that
             time is expired, the worker will shutdown.
     """
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     mp.util.debug('worker started with timeout=%s' % timeout)
     while True:
         try:
@@ -522,12 +524,15 @@ def _queue_management_worker(executor_reference,
             # a worker timeout while some jobs were submitted. If some work is
             # pending or there is less processes than runnin items, we need to
             # start a new Process and raise a warning
-            if ((len(pending_work_items) > 0
+            if ((len(pending_work_items) > len(running_work_items)
                 or len(running_work_items) > len(processes))
                and not is_shutting_down()):
+
                 warnings.warn("A worker timeout while some jobs were given to "
                               "the executor. You might want to use a longer "
                               "timeout for the executor.", UserWarning)
+                print(pending_work_items, running_work_items,
+                      result_item)
                 executor = executor_reference()
                 if executor is not None:
                     executor._adjust_process_count()
@@ -712,7 +717,7 @@ class ProcessPoolExecutor(_base.Executor):
         _check_system_limits()
 
         if max_workers is None:
-            self._max_workers = os.cpu_count() or 1
+            self._max_workers = mp.cpu_count() or 1
         else:
             if max_workers <= 0:
                 raise ValueError("max_workers must be greater than 0")
@@ -782,7 +787,10 @@ class ProcessPoolExecutor(_base.Executor):
                       self._processes_management_lock),
                 name="QueueManager")
             self._queue_management_thread.daemon = True
+            old_handler = signal.getsignal(signal.SIGINT)
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
             self._queue_management_thread.start()
+            signal.signal(signal.SIGINT, old_handler)
 
             # register this executor in a mecanism that ensures it will wakeup
             # when the interpreter is exiting.
@@ -803,7 +811,10 @@ class ProcessPoolExecutor(_base.Executor):
                       self._result_queue),
                 name="ThreadManager")
             self._thread_management_thread.daemon = True
+            old_handler = signal.getsignal(signal.SIGINT)
+            # signal.signal(signal.SIGINT, signal.SIG_IGN)
             self._thread_management_thread.start()
+            signal.signal(signal.SIGINT, old_handler)
 
     def _adjust_process_count(self):
         for _ in range(len(self._processes), self._max_workers):
