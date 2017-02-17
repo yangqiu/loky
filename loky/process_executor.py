@@ -62,7 +62,6 @@ import sys
 import time
 import types
 import atexit
-import signal
 import weakref
 import warnings
 import itertools
@@ -286,6 +285,7 @@ def _process_worker(call_queue, result_queue, processes_management_lock,
         timeout: maximum time to wait for a new item in the call_queue. If that
             time is expired, the worker will shutdown.
     """
+    import signal
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     mp.util.debug('worker started with timeout=%s' % timeout)
     while True:
@@ -552,7 +552,7 @@ def _queue_management_worker(executor_reference,
         # Check whether we should start shutting down.
         executor = executor_reference()
         if is_shutting_down():
-            if executor_flags.kill_workers:
+            if executor_flags.kill_workers or _global_shutdown:
                 while pending_work_items:
                     _, work_item = pending_work_items.popitem()
                     work_item.future.set_exception(ShutdownExecutor(
@@ -787,10 +787,7 @@ class ProcessPoolExecutor(_base.Executor):
                       self._processes_management_lock),
                 name="QueueManager")
             self._queue_management_thread.daemon = True
-            old_handler = signal.getsignal(signal.SIGINT)
-            signal.signal(signal.SIGINT, signal.SIG_IGN)
             self._queue_management_thread.start()
-            signal.signal(signal.SIGINT, old_handler)
 
             # register this executor in a mecanism that ensures it will wakeup
             # when the interpreter is exiting.
@@ -811,10 +808,7 @@ class ProcessPoolExecutor(_base.Executor):
                       self._result_queue),
                 name="ThreadManager")
             self._thread_management_thread.daemon = True
-            old_handler = signal.getsignal(signal.SIGINT)
-            # signal.signal(signal.SIGINT, signal.SIG_IGN)
             self._thread_management_thread.start()
-            signal.signal(signal.SIGINT, old_handler)
 
     def _adjust_process_count(self):
         for _ in range(len(self._processes), self._max_workers):
