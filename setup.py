@@ -43,7 +43,7 @@ setup(
     version='1.2.0.dev0',
     description=("A robust implementation of "
                  "concurrent.futures.ProcessPoolExecutor"),
-    long_description=open('README.md', 'rb').read().decode('utf-8'),
+    long_description=open('README.rst', 'rb').read().decode('utf-8'),
     url='https://github.com/tommoral/loky/',
     author='Thomas Moreau',
     author_email='thomas.moreau.2010@gmail.com',

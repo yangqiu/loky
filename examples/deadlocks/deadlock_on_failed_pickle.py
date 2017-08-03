@@ -1,4 +1,7 @@
 """
+Deadlock on failed pickle
+=========================
+
 This example highlights the fact that the ProcessPoolExecutor implementation
 from concurrent.futures is not robust to pickling error (at least in versions
 3.6 and lower).
@@ -25,4 +28,4 @@ if __name__ == "__main__":
         from loky import ProcessPoolExecutor
 
     with ProcessPoolExecutor() as e:
-        f = e.submit(id, ObjectWithPickleError())
+        f = e.submit(id, ObjectWithPickleError()).result()
